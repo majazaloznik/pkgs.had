@@ -17,53 +17,91 @@ knitr::opts_chunk$set(
 ```
 
 
+# Introduction 
+
+```{r eval = FALSE}
+install.packages(c("devtools", "roxygen2", "testthat", "knitr"))
+install.packages("digest")
+install.packages("rcmdcheck")
+devtools::install_github("hadley/devtools")
+library("devtools")
+
+x <-  has_devel()
+x
+```
+*In the book it says `has_devel()` will return a bunch of diagnostics and then `TRUE`, but it now seems to return the value silently---invisibly. *
 
 
-## 
-Start this journal as a vingette, because what else am I gonna write it as? 
+
+
+# Package structure
+
+Says it doesn't matter if you start a package from Rstudio or using `devtools::create()` even though Robert Flight says a rstudio created project won't pass the CRAn tests - although he did say that in 2014. 
+
+At this point I start a package as a new project, from Rstudio, also initialising a `git` repo and a `packrat` file. Best see how this works in practice. 
+
+After I do the initial commit I realise I obviously don't have a github repo yet, so I start a new one and then use:
+
+```
+git remote add origin git@github.com:majazaloznik/pkgs.had.git
+```
+to add  the repository.
+
+Then I also start this journal as a vingette, because what else am I gonna write it as? 
 ```{r eval = FALSE}
 devtools::use_vignette("journal")
 ```
 
+## Package states
 
-## Vignette Info
+### Source package
 
-Note the various macros within the `vignette` section of the metadata block above. These are required in order to instruct R how to build the vignette. Note that you should change the `title` field and the `\VignetteIndexEntry` to match the title of your vignette.
+A source package is the development version of a package that lived on my conmputer: the directory with all the components e.g. `R/`, `DESCRIPTION` etc.
 
-## Styles
+### Bundled package
 
-The `html_vignette` template includes a basic CSS theme. To override this theme you can specify your own CSS in the document metadata as follows:
+Is compressed to a single file---by linux convention `tar.gz`. If you decompress a bundle it will look **almost** like a source package. You create a bundle using `devtools::build()`, which will bundle everyhting but what is in the `Rbuildignore` file and temporary files like compilation files in `src/`. Bundles also have the vignettes built to html and pdf. 
 
-    output: 
-      rmarkdown::html_vignette:
-        css: mystyles.css
+`Rbuildignore` lets you have additional files and folders in the source package that are not included in the bundle e.g. data you generated: you want the data in the source package but doens't need to be distributed. 
 
-## Figures
+Use Perl-compatible regular expresions to exclude files. (e.g. `notes` will also exclude `end.notes.R`, so you have to say `^notes$` to be clear that the name begins `^` and ends `$` with notes. 
 
-The figure sizes have been customised so that you can easily put two images side-by-side. 
+You can use `devtools::use_build_ignore()` to have it do the regexing for you. 
 
-```{r, fig.show='hold'}
-plot(1:10)
-plot(10:1)
-```
 
-You can enable figure captions by `fig_caption: yes` in YAML:
+### Binary package
 
-    output:
-      rmarkdown::html_vignette:
-        fig_caption: yes
+To distribute to someone without development tools, you need a binary. This is also a single file, but when uncompressed it is slightly different to the source package:
 
-Then you can use the chunk option `fig.cap = "Your figure caption."` in **knitr**.
+* No .R files in the `R/` directory but `.RData` files instead, three of them, that are basically the functions loaded into R and saved. 
+* a `Meta/` directory with a number of `Rds` files, which contains metadata about the package. This is also for faster loading. 
+* a `html/` directory with the html help files
+* "if you had any code in the `src/` directory there will now be a `libs/` directory that contains the results of compiling 32 bit and 64 bit code."
+* the contents of the `inst/` directory are moved to the top level. 
 
-## More Examples
+Binary packages are **platform specific**. 
 
-You can write math expressions, e.g. $Y = X\beta + \epsilon$, footnotes^[A footnote here.], and tables, e.g. using `knitr::kable()`.
+Use `devtools::build(binary = TRUE)` to build a binary---*although it doesnt' say how you bild one specific to each platform?* Oh, seems like it's current platform only?
 
-```{r, echo=FALSE, results='asis'}
-knitr::kable(head(mtcars, 10))
-```
+### Installed package
 
-Also a quote using `>`:
+Is a binary that has been decompressed into a package library. This can be done in several ways. e/g/:
 
-> "He who gives up [code] safety for [code] speed deserves neither."
-([via](https://twitter.com/hadleywickham/status/504368538874703872))
+* from CRAN i.e. from a binary file - `install.packages()`
+* from github i.e. first downloads a source package, then builds (the bundle) it and then installs it
+
+### In memory packages
+
+To use a package you must load it into memory. There is an important disticntion between loading and loading and attaching an installed package.: 
+
+* `devtools::install()`---loads the devtools package
+* `library(devtools); install()` loads and attaches devtools. 
+
+This will apparently be explained later, but for now, library is not useful when you're developing the package, because you have to install it first. 
+
+## What is a library
+
+A library is simply a directory containing packages. Use `.libPaths()` to see what you've got active
+
+
+# Rcode
