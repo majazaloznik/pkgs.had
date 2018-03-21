@@ -2,7 +2,8 @@
 title: "Journal"
 author: "mz"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output: pdf_document
+        #rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Journal}
   %\VignetteEngine{knitr::rmarkdown}
@@ -51,10 +52,11 @@ Then I also start this journal as a vingette, because what else am I gonna write
 ```{r eval = FALSE}
 devtools::use_vignette("journal")
 ```
+*This is in the [vignettes chapter](http://r-pkgs.had.co.nz/vignettes.html) although it is deprecated. You're supposed to use `usethis::use_vignette()`.* Note that the default output is html, which I have for the time being changed to `pff_document`, but not sure how this works when you build your package. 
 
 ## Package states
 
-### Source package
+### Source package 
 
 A source package is the development version of a package that lived on my conmputer: the directory with all the components e.g. `R/`, `DESCRIPTION` etc.
 
@@ -103,5 +105,229 @@ This will apparently be explained later, but for now, library is not useful when
 
 A library is simply a directory containing packages. Use `.libPaths()` to see what you've got active
 
-
 # Rcode
+
+**All code goes into `R\`.**
+
+## R code workflow
+
+(Re)load your code with Ctrl+Shift+L. Then 'explore the code in the console' *I don't get this, what is that supposed to mean?*. OK, so this is the same as `devtools::load_all()`, whic builds the package from source and installs it and loads it/attaches. *so explore the code means you can access the updated functions, in the console.* Use Ctrl+Shift+L, because it also saves the files. 
+
+## Organising your functions
+
+Putting them all in one file or each in their own are both bad!? Hmm, I'm def in the latter camp, unless there is a good reason to merge more together. OK, rule of thumb: it must be easy to remember where each function lives. You can't use subdirectories inside `R\`.
+
+Looking for functions within a file:
+
+* if you click on a the function name `F2` will take you to the definition
+* Ctrl `+ .` will open a fucniton search box.
+
+Then get back to where you were with `Ctrl+F9`
+
+## Code style
+
+`formatR` and `lintr` are an automatic and static approach to keeping clean code approx in line with the Rstudio guidelines. 
+
+### Object names
+
+Functions and variiables, all lower case, with underscore, not fullstop---reserved for S3 methods. Variable names should be nouns and funcion names should be verbs. 
+
+### Spacing
+
+Around operators except `:`, before `(` except in funciton call, after `,` not before
+
+### Curyl braces
+
+Open `{` never on own line, always followed by newline; closed `}` always on new line *ugh* except before `else`
+
+## commenting
+
+Explain the why, not the what!
+
+## Top-level code
+
+Code in packages---as opposed to scripts---is run when it is built, so it should only build objects, mainly functions. *Not a clear sentence, really* Aha, he's trying to say not to write top-level code, because it won't get executed when you load it (see more below). 
+
+Anticipate unimagined applications of your code by other people. 
+
+### Loading code
+
+So in a package the code is executed when you build it, but not when you load it. So top-level code (e.g. `library(ggplot)` won't execute when you install a package, installing a package will only load the objects into the environment. So this sort of top level code has to be moved into the functions themselves if you want it available---but don't do that with libraries, do that in the `DESCRIPTION` file as we'll see later. 
+
+### The R landscape
+
+Don't change the landscape---it will not be the same for other people and will make things more difficult to understand. `library()`, `source()`, `setwd()`, `options()` are  all landscape changing functions and you probably don't want to use them. 
+*Although I'm again not particulalry happy with the explanation here, so you should avoid things that change the behaviour of other functions after you're done, so you should always revert them back to the way they were using `on.exit()`.*
+
+Also, be careful not to make assumptions about the user's landscape¬
+
+### When you do need side-effects
+
+Sometimes you do ened some initial setup (*what would be equivalent to top-level code in a script file*) in a package. Use `onLoad()` and `onAttach()` for this (mainly the first one unless directed otherwise). Uses:
+
+* display a message when the package loads:
+```
+.onAttach <- function(libname, pkgname) {
+  packageStartupMessage("Welcome to my package")
+}
+```
+* to set custom options:
+
+```
+.onLoad <- function(libname, pkgname) {
+  op <- options()
+  op.devtools <- list(
+    devtools.path = "~/R-dev",
+    devtools.install.args = "",
+    devtools.name = "Your name goes here",
+    devtools.desc.author = "First Last <first.last@example.com> [aut, cre]",
+    devtools.desc.license = "What license is it under?",
+    devtools.desc.suggests = NULL,
+    devtools.desc = list()
+  )
+  toset <- !(names(op.devtools) %in% names(op))
+  if(any(toset)) options(op.devtools[toset])
+
+  invisible()
+}
+```
+*This is again not clearly explained at all.* To avoid conflicts with other packages you prefix the options with the package name, in this case `devtools`, and also you test if the user has already set the options themself before you override them. After you do this you can use `getOption("devtools.name")` for example, to access the value. Oh, `invisible()` is used instead of return to mean that you can assign the value, but it won't be printed if you don't. *But not sure why it is necessary here?*
+
+* to talk to other programming languages like e.g. calling `rJava::.jpackage()`
+
+* to register vignette engines with `tools::vignetteEngine()` *whatever the hell that means*. 
+
+*These last two  bullet points are not clear at all tbh.* The last one must be based on [this section in the manual](https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Non_002dSweave-vignettes) which unfotunately isn't massively more helpful. 
+
+Hopefully there will be more info on `.onLoad()`, but yeah, you should consider using `onUnload()` to clean up as well, and these files are by convention saved in a file called `zzz.R`
+
+
+*Also---apart from the mention in 'Object names' that fullstops should be reserved for S3 objets---there is no explanaiton for the periods in names, especially names starting with them. Which is odd, since they are useful in package building.* 
+
+### S4 classes
+
+Another side-effect that you do want to ensure S4 clases are defined in the right order, with methods and generics, so the `R\` folder needs to be sourced in a specific order, which you do through the `DESCRIPTION` file as well, we'll see later. 
+
+# Package metadata
+
+The `DESCRIPTION` file is the defining feature of a package, if it's in the folder, R considers it a package. Minimal bare-bones is provided when you create it using `devtools` or Rstudio. 
+
+## Dependencies
+
+```yaml
+Imports:
+    dplyr
+Suggests:
+    ggvis
+    vcd
+```
+Comma separated lists of packages. `Imports` means the packages are necessary for your package to work. If not present, then `devtools_load_all()` will install them, **however** they will not be attached along with your package! Best practice is to use `::` to refer to external fucntions, also makes it more readable. 
+
+`Suggests` means the packages are not required, they might be useful for example datasets to run tests, build vignettes etc.They will not be automatically installed, so if you want to use stuff from there you need to use `requireNamespace(x, quetly - TRUE)` to check if it is available before you try to use it:
+
+```{r eval = FALSE}
+# Option 1: exit if the package isn't available
+my_fun <- function(a, b) {
+  if (!requireNamespace("pkg", quietly = TRUE)) {
+    stop("Package \"pkg\" needed for this function to work. Please install it.",
+      call. = FALSE)
+  }
+}
+
+# Use alternative if package isn't available
+my_fun <- function(a, b) {
+  if (requireNamespace("pkg", quietly = TRUE)) {
+    pkg::f()
+  } else {
+    g()
+  }
+}
+```
+
+`usethis::use_package("dplyr")` to add a package dependency automatically *the `devtools::` version is deprecated*. [^1]
+
+[^1]: [this issue here](https://github.com/r-lib/devtools/issues/1671) explains that the deprecation is a temp warning as the `devtools` package is on it's way to becoming a wrapper package, like tidyveres, so while these funcitons will live in `usethis`, they will automatically be loaded with devtools, so it won't change anything from the user's perspective. 
+
+### Versioning
+
+You should specify the version of the package required:
+
+```yaml
+Imports:
+    dplyr (>= 0.2),
+    ggbis(>= 0.3.1.1)
+```
+Usually minimum rather than exact. "unless you know otherwise always require a version greater than or equal to the version you're currenlty using" *Well, you could also try an older one, to be nice? But I guess that's not encouraging people to update their packages..*
+
+### Other dependencies
+
+Before namespaces were rolled out in R 2.14.0 you used `Depends` instead of `Imports`, which you should now use almost in all cases except when not---which will be covered in namespaces. 
+
+You can use `Depends: R (>= 3.0.1)` *but not at all clear what he means by `devtools::create()` will do this for you. This seems to no longer be true.*
+
+
+## Title and description: what does your package do?
+
+Short and long versions of what your package does. But also add a `README.md` for a longer description 
+
+
+## Author
+
+Use:
+
+```
+person("Maja", "Zaloznik", email = "maja.zaloznik@gmail.com", 
+  role = c("aut", "cre"))
+```
+Also might be useful to add `URL:` and `BugReports:` e.g. the github repo's issues. 
+
+
+## Licence
+
+Either the acronym, or write `file LICENCE` and then write sth in that file. 
+
+Open source licences to conside:
+
+* `MIT + file LICENCE`, where the file includes the year and name of copyright holder. This one lets everoneuse and distribute as long as they attribure it and add a copy of the original licence. *But they can distribute it under any licence they like*
+* `GPL-2` and `GPL-3` are copy-left, require that even modifications are under GPL as well (if they are distributed). So if your package or part of the code is reused, the new developer must make the source available as well.
+
+* `CC0` relinquishes all rights, puts it in the public domain. really only usefull for data packages. 
+
+## Version 
+
+Standard versioning `major.minor.patch`, while in development use `0.0.0.9000` to make that clear before it's released.  *if that's so, then why doesn't `create()` do that instead of `0.1.0.`?*
+
+# Object documentation 
+
+Is only helpful if you know what you're looking for. 
+
+Instead of manually writing `.Rd` files for each function, `roxygen2` lets you write literate code with comments alongside the functions, which are then automatically converted to `.Rd` files. (also you use it for the collate field and the namespace, but more on that later)
+
+## the documentation workflow
+
+So write roxygen comments in your source file, run `devtools::document()` to generate the `.Rd` files, preview the documentation with `?`. But the previews created this way will  not show any links between pages.For that use:
+
+## alternative documentation workflow
+
+Add roxygen comments, click the `build and reload` button in the build pane or pres `Ctrl+shift+B`. This is a lot more thorough: it completley rebuilds the package, which also updates the documentation, and then installs it in your regular library, restarts R and reloads the package. *This is now called `install and restart`*
+
+## Roxygen comments
+
+Are placed before the function they refer to, the blocks of text are broken up into `@tags`, The first three sections are implicit, so you don't need to add the tags:
+
+* `@title` the first sentence is the title
+* `@description` is the second paragraph
+* `@details` the third and subsequent paragraphs are details. *this is missing from the footnote*
+
+You can use formatting e.g. `\code{}` and `\link{}`
+
+
+
+
+
+
+
+
+# Vignettes 
+
+What's the deal with the default outputs? OK, `html_vingette` as opposed to `html_document` is explained [here](https://rmarkdown.rstudio.com/package_vignette_format.html) to be due to its smaller size i.e. great for CRAN. 
